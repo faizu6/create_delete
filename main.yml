@@ -1,0 +1,105 @@
+---
+- hosts: localhost
+  become: true
+  tasks:
+    # create a security group
+    - ec2_group:
+          vpc_id: vpc-03b63bf99652de6a0
+          region: ap-southeast-1
+          name: "{{ name }}-jenkins-sg"
+          description: security group with all traffic allow
+          rules:
+          - proto: tcp
+            ports:
+              - 8080
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 8080
+      register: sg_info
+      tags:
+        - run
+
+    - debug:
+        msg:  "{{ sg_info.group_id }}"
+      tags:
+      - run
+
+
+    # create an instance
+    - amazon.aws.ec2:
+        key_name: new-keypair
+        instance_type: t2.micro
+        instance_tags:
+           Name: "{{ name }}-jenkins-server"
+        image: ami-0ff89c4ce7de192ea
+        group_id: "{{ sg_info.group_id }}"
+        region: ap-southeast-1
+        count_tag:
+           Name: "{{ name }}-jenkins-server"
+        exact_count: 1
+        vpc_subnet_id: subnet-02ce50a9cc336f6ed
+        assign_public_ip: yes
+        wait: yes
+        user_data: |
+               #!/bin/sh
+               yum update
+               wget -O /etc/yum.repos.d/jenkins.repo \
+                    https://pkg.jenkins.io/redhat-stable/jenkins.repo
+               rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+               yum upgrade
+               amazon-linux-extras install java-openjdk11 -y
+               yum install -y jenkins
+               systemctl enable jenkins.service
+               systemctl start jenkins.service
+      register: ec2_info
+      tags:
+        - run
+    - debug:
+        msg: "{{ ec2_info.tagged_instances[0].public_ip }}"
+      tags:
+      - run
+
+
+
+  # debugging the ip address of the instance to be deleted
+    - ec2_instance_info:
+        region: ap-southeast-1
+        filters:
+          "tag:Name": "{{ name }}-jenkins-server"
+          instance-state-name: [ "shutting-down", "stopping", "stopped", "running" ]
+      register: ec2_data
+      tags:
+      - stop
+
+    - debug:
+        msg: "{{ ec2_data.instances[0].instance_id }}"
+      tags:
+      - stop
+
+
+  # delete an instance created
+  - amazon.aws.ec2:
+        state: absent
+        instance_ids: "{{ ec2_data.instances[0].instance_id }}"
+    tags:
+      - stop
+
+   # delete a security group
+   - ec2_group:
+       state: absent
+       name: "{{ name }}-jenkins-sg"
+       vpc_id: vpc-03b63bf99652de6a0
+       region: ap-southeast-1
+     tags:
+     - stop
+
+   # route53; creating a record set
+   - community.aws.route53:
+       state: "{{ state }}"
+       zone: faizanulhaqtest.ml
+       record: "{{ name }}.faizanulhaqtest.ml"
+       type: A
+       value: "{{ ec2_info.tagged_instances[0].public_ip }}"
+       ttl: 300
+     tags:
+       - run
+       - stop
