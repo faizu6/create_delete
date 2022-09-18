@@ -1,7 +1,7 @@
 pipeline {
     agent any
     parameters {
-        string(name: 'Project', defaultValue: 'dog', description: 'what is the name of the department for which task is needed?')
+        string(name: 'Project', description: 'what is the name of the department for which task is needed?')
         choice(name: 'tag', choices: ['Run', 'Stop'], description: 'Choose whether to create or delete')
         }
     environment { 
