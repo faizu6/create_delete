@@ -72,34 +72,50 @@
 
     - debug:
         msg: "{{ ec2_data.instances[0].instance_id }}"
+    - debug:
+        msg: "{{ ec2_data.instances[0].public_ip_address }}"
       tags:
       - stop
 
 
   # delete an instance created
-  - amazon.aws.ec2:
+    - amazon.aws.ec2:
         state: absent
+        region: ap-southeast-1
         instance_ids: "{{ ec2_data.instances[0].instance_id }}"
-    tags:
+        wait: true
+      tags:
       - stop
 
    # delete a security group
-   - ec2_group:
+    - ec2_group:
        state: absent
+       region: ap-southeast-1
        name: "{{ name }}-jenkins-sg"
        vpc_id: vpc-03b63bf99652de6a0
        region: ap-southeast-1
-     tags:
-     - stop
+      tags:
+      - stop
 
    # route53; creating a record set
-   - community.aws.route53:
-       state: "{{ state }}"
-       zone: faizanulhaqtest.ml
-       record: "{{ name }}.faizanulhaqtest.ml"
-       type: A
-       value: "{{ ec2_info.tagged_instances[0].public_ip }}"
-       ttl: 300
-     tags:
+    - community.aws.route53:
+        state: present
+        zone: faizanulhaqtest.ml
+        record: "{{ name }}.faizanulhaqtest.ml"
+        type: A
+        value: "{{ ec2_info.tagged_instances[0].public_ip }}"
+        ttl: 300
+      tags:
        - run
+
+
+   # route53; creating a record set
+    - community.aws.route53:
+        state: absent
+        zone: faizanulhaqtest.ml
+        record: "{{ name }}.faizanulhaqtest.ml"
+        type: A
+        value: "{{ ec2_data.instances[0].public_ip_address }}"
+        ttl: 300
+      tags:
        - stop
