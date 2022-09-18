@@ -11,7 +11,7 @@ pipeline {
             }
             steps {
                 sh '''
-                ls -l
+                ansible-playbook main.yml -e name=${name} --tag ${tag}
                 '''
             }
         }
